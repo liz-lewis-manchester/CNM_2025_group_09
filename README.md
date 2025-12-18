@@ -528,4 +528,3 @@ All are pre-installed in Google Colab.
 ## Authors
 
 [Group 9 / Ching Yau Chan, Hassan Alhamdani, Jiongjie Chen, Lucas So and Oyinmiebi Youdeowei]
-
