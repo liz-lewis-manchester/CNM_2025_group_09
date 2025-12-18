@@ -1,0 +1,195 @@
+src/advection_solver.py
+
+"""
+Advection Solver Module
+=======================
+Solves the 1D advection equation: ∂θ/∂t = -U * ∂θ/∂x
+Using implicit finite difference scheme.
+
+See README.md for usage guide and examples.
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from IPython.display import HTML
+
+
+def advection_solver(end_time, dt, length, dx, U, C0=0,
+                     initial_conditions=None,
+                     boundary_condition=None):
+    """
+    Solve 1D advection equation using implicit finite difference method.
+
+    Parameters:
+        end_time : float - simulation duration
+        dt : float - time step
+        length : float - domain length
+        dx : float - spatial resolution
+        U : float or array - velocity (constant or spatially varying)
+        C0 : float - default inlet concentration
+        initial_conditions : array, optional - custom initial profile
+        boundary_condition : float or callable, optional - inlet condition
+
+    Returns:
+        dict with 'distance', 'time', 'concentrations', 'parameters'
+    """
+    # Create spatial grid
+    num_points = int(length / dx) + 1
+    distance = np.linspace(0, length, num_points)
+
+    # Set initial conditions (default: zeros with C0 at inlet)
+    if initial_conditions is None:
+        initial_conditions = np.zeros(num_points)
+        initial_conditions[0] = C0
+
+    # Set boundary condition function
+    if boundary_condition is None:
+        bc_func = lambda t: C0
+    elif callable(boundary_condition):
+        bc_func = boundary_condition
+    else:
+        bc_func = lambda t: boundary_condition
+
+    # Finite difference coefficients from implicit discretisation:
+    # (θ_new - θ_old)/dt = -U * (θ_new[i] - θ_new[i-1])/dx
+    # Rearranged: θ_new[i] = (θ_old[i]/dt + B*θ_new[i-1]) / A
+    A = 1/dt + U/dx
+    B = U/dx
+
+    # Convert to arrays if scalar (for variable velocity support)
+    if np.isscalar(A):
+        A = np.full(num_points, A)
+        B = np.full(num_points, B)
+
+    # Time stepping setup
+    num_frames = int(end_time / dt) + 1
+    time_array = np.linspace(0, end_time, num_frames)
+
+    # Storage for results
+    all_concentrations = [initial_conditions.copy()]
+    current = initial_conditions.copy()
+
+    # Main time-stepping loop
+    for k in range(1, num_frames):
+        new = np.zeros(num_points)
+        new[0] = bc_func(k * dt)  # Apply boundary condition
+
+        # Sweep left to right (implicit scheme)
+        for i in range(1, num_points):
+            new[i] = (current[i]/dt + B[i]*new[i-1]) / A[i]
+
+        current = new.copy()
+        all_concentrations.append(new.copy())
+
+    return {
+        'distance': distance,
+        'time': time_array,
+        'concentrations': all_concentrations,
+        'parameters': {'end_time': end_time, 'dt': dt, 'dx': dx,
+                      'length': length, 'num_points': num_points}
+    }
+
+
+def create_animation(results, max_conc=None):
+    """
+    Create animated plot of concentration over time.
+
+    Parameters:
+        results : dict - output from advection_solver()
+        max_conc : float, optional - y-axis maximum (auto-calculated if None)
+
+    Returns:
+        HTML animation object for display in Jupyter/Colab
+    """
+    # Extract data from results dictionary
+    dist = results['distance']              # x-axis values (spatial grid)
+    concs = results['concentrations']       # List of concentration arrays at each time step
+    dt = results['parameters']['dt']        # Time step (for title display)
+    length = results['parameters']['length'] # Domain length (for x-axis limit)
+
+    # Auto-calculate y-axis maximum if not specified
+    # Finds the maximum concentration across all time steps
+    if max_conc is None:
+        max_conc = max(np.max(c) for c in concs)
+
+    # Create figure and axes for the animation
+    fig, ax = plt.subplots(figsize=(10, 6))  # 10x6 inch figure
+
+    # Animation function - called once for each frame
+    # Parameter 'f' is the frame number (0, 1, 2, ...)
+    def animate(f):
+        ax.cla()  # Clear axes to remove previous frame
+
+        # Plot concentration profile for this time step
+        ax.plot(dist, concs[f], 'b-', linewidth=2)  # 'b-' = blue solid line
+
+        # Set axis limits (keep consistent across all frames)
+        ax.set_xlim(0, length)
+        ax.set_ylim(0, max_conc * 1.1)  # 10% padding above max
+
+        # Labels and title
+        ax.set_xlabel("Distance (m)")
+        ax.set_ylabel("Concentration (μg/m³)")
+        ax.set_title(f"Time = {f * dt:.1f} s")  # Show current time
+        ax.grid(True)
+
+    # Create the animation object
+    # - fig: figure to animate
+    # - animate: function to call for each frame
+    # - frames: total number of frames (one per time step)
+    # - interval: milliseconds between frames (100ms = 10 fps)
+    anim = animation.FuncAnimation(fig, animate, frames=len(concs), interval=100)
+
+    plt.close()  # Prevent static figure from displaying
+
+    # Convert to HTML for display in Jupyter/Colab notebooks
+    return HTML(anim.to_jshtml())
+
+
+def plot_snapshots(results, num_snapshots=5, title=""):
+    """
+    Create static plot with concentration profiles at multiple times.
+
+    Parameters:
+        results : dict - output from advection_solver()
+        num_snapshots : int - number of time points to show (default 5)
+        title : str - plot title
+
+    Returns:
+        None (displays plot directly)
+    """
+    # Extract data from results dictionary
+    dist = results['distance']        # x-axis values (spatial grid)
+    concs = results['concentrations'] # List of concentration arrays at each time step
+    dt = results['parameters']['dt']  # Time step (for legend labels)
+
+    # Create figure and axes
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Select which time steps to plot (evenly spaced)
+    # Example: if 31 frames and 5 snapshots → indices [0, 7, 15, 22, 30]
+    indices = np.linspace(0, len(concs)-1, num_snapshots, dtype=int)
+
+    # Create colour gradient for different time points
+    # viridis goes from purple (early times) to yellow (late times)
+    colors = plt.cm.viridis(np.linspace(0, 1, num_snapshots))
+
+    # Plot each snapshot
+    for idx, frame in enumerate(indices):
+        ax.plot(dist, concs[frame],           # x and y data
+                color=colors[idx],             # Colour from gradient
+                linewidth=2,                   # Line thickness
+                label=f't = {frame*dt:.0f} s') # Legend label showing time
+
+    # Labels, title, and formatting
+    ax.set_xlabel("Distance (m)")
+    ax.set_ylabel("Concentration (μg/m³)")
+    ax.set_title(title)
+    ax.legend()   # Show legend with time labels
+    ax.grid(True) # Add grid lines
+    plt.show()    # Display the plot
+
+
+# Confirmation message when module is loaded
+print("✓ Solver loaded successfully!")
