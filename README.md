@@ -129,31 +129,17 @@ create_animation(results, max_conc=250)
 
 **Description:** Test the case where the 1D model domain extends to 20m downstream (with a 20cm spatial resolution) of the point that the pollutant enters the river and model how the pollutant moves over the 5 minutes after it enters the river (with a temporal resolution of 10s). Assume that the initial concentration of the pollutant is 250 µg/m³ at x=0 and 0 elsewhere. Assume that U = 0.1ms⁻¹
 
-**Code:**
+**Where to make changes:** Modify the parameters passed to `advection_solver()`:
 ```python
 results1 = advection_solver(
-    end_time=300,    # Simulation duration (s)
-    dt=10,           # Time step (s)
-    length=20,       # Domain length (m)
-    dx=0.2,          # Spatial resolution (m)
-    U=0.1,           # Flow velocity (m/s)
-    C0=250           # Inlet concentration (µg/m³)
+    end_time=300,    # ← Change simulation duration here
+    dt=10,           # ← Change time step here
+    length=20,       # ← Change domain length here
+    dx=0.2,          # ← Change spatial resolution here
+    U=0.1,           # ← Change velocity here
+    C0=250           # ← Change inlet concentration here
 )
-
-plot_snapshots(results1, title="Test Case 1: Basic Simulation")
-create_animation(results1, max_conc=250)
 ```
-
-**How to adapt:**
-
-| Parameter | How to Change | Example Scenarios |
-|-----------|---------------|-------------------|
-| `end_time` | Increase for longer simulations | `3600` for 1 hour, `86400` for 1 day |
-| `dt` | Decrease for more accuracy, increase for speed | `1` for detailed output, `60` for fast runs |
-| `length` | Match your study area | `100` for 100m river section, `5000` for 5km |
-| `dx` | Smaller = more detail, larger = faster | `0.1` for fine detail, `1.0` for coarse |
-| `U` | Match your flow speed | `0.01` for slow groundwater, `2.0` for fast river |
-| `C0` | Match your source concentration | Any positive value in your units |
 
 ---
 
@@ -161,40 +147,18 @@ create_animation(results1, max_conc=250)
 
 **Description:** Test the case where, for the same model domain, the initial conditions are read in from a csv file 'initial_conditions.csv'. Note that the provided measurements are not aligned with the model grid. Your code should be written so that it can read in any initial conditions provided and to interpolate them onto the model grid.
 
-**Code:**
+**Where to make changes:**
 ```python
-import pandas as pd
-
-# Read CSV file
+# ← Change filename and encoding here
 df = pd.read_csv('initial_conditions.csv', encoding='cp1252')
-data_dist = df.iloc[:, 0].values  # Distance column
-data_conc = df.iloc[:, 1].values  # Concentration column
 
-# Create model grid and interpolate
+# ← Change column selection here (0 = first column, 1 = second column)
+data_dist = df.iloc[:, 0].values
+data_conc = df.iloc[:, 1].values
+
+# ← Change domain parameters here
 length, dx = 20, 0.2
-num_points = int(length / dx) + 1
-model_distance = np.linspace(0, length, num_points)
-initial_cond = np.interp(model_distance, data_dist, data_conc)
-
-# Run solver
-results2 = advection_solver(
-    end_time=300, dt=10, length=20, dx=0.2, U=0.1,
-    initial_conditions=initial_cond,
-    boundary_condition=initial_cond[0]
-)
-
-plot_snapshots(results2, title="Test Case 2: CSV Initial Conditions")
-create_animation(results2)
 ```
-
-**How to adapt:**
-
-| What to Change | How | Example |
-|----------------|-----|---------|
-| CSV filename | Change `'initial_conditions.csv'` | `'my_measurements.csv'` |
-| File encoding | Change `encoding=` parameter | `'utf-8'` for most files |
-| Column selection | Change `iloc[:, 0]` and `iloc[:, 1]` | `iloc[:, 2]` for third column |
-| Column by name | Use column names instead of indices | `df['Distance']` and `df['Concentration']` |
 
 ---
 
@@ -202,43 +166,18 @@ create_animation(results2)
 
 **Description:** Test to see how sensitive your model results are to its parameters (U, spatial and temporal resolution)
 
-**Code:**
+**Where to make changes:**
 ```python
-# Sensitivity to Velocity (U)
-fig, ax = plt.subplots(figsize=(10, 6))
+# ← Change the parameter values in these lists
 for U in [0.001, 0.01, 0.1, 1, 10]:
-    results = advection_solver(end_time=300, dt=10, length=20, dx=0.2, U=U, C0=250)
-    ax.plot(results['distance'], results['concentrations'][-1],
-            label=f'U = {U} m/s', linewidth=2)
-ax.set_xlabel("Distance (m)")
-ax.set_ylabel("Concentration (μg/m³)")
-ax.set_title("Sensitivity to Velocity U (Final State)")
-ax.legend()
-ax.grid(True)
-plt.show()
+    ...
 
-# Sensitivity to Spatial Resolution (dx)
-fig, ax = plt.subplots(figsize=(10, 6))
 for dx in [0.1, 0.2, 0.5, 1.0, 2.0]:
-    results = advection_solver(end_time=300, dt=10, length=20, dx=dx, U=0.1, C0=250)
-    ax.plot(results['distance'], results['concentrations'][-1],
-            label=f'Δx = {dx} m', linewidth=2)
+    ...
 
-# Sensitivity to Time Step (dt)
-fig, ax = plt.subplots(figsize=(10, 6))
 for dt in [1, 5, 10, 30, 60]:
-    results = advection_solver(end_time=300, dt=dt, length=20, dx=0.2, U=0.1, C0=250)
-    ax.plot(results['distance'], results['concentrations'][-1],
-            label=f'Δt = {dt} s', linewidth=2)
+    ...
 ```
-
-**How to adapt:**
-
-| What to Change | How | Example |
-|----------------|-----|---------|
-| Parameter to vary | Change which parameter is in the loop | `for C0 in [100, 250, 500]` |
-| Parameter values | Change the list of values | `[0.05, 0.1, 0.2]` for realistic range |
-| Output to compare | Change `results['concentrations'][-1]` | `results['concentrations'][10]` for t=100s |
 
 ---
 
@@ -246,29 +185,17 @@ for dt in [1, 5, 10, 30, 60]:
 
 **Description:** Test to see how an exponentially decaying initial concentration of the pollutant in time alters your results.
 
-**Code:**
+**Where to make changes:**
 ```python
-C0 = 250           # Initial concentration (µg/m³)
-decay_rate = 0.01  # Decay rate λ (1/s)
+C0 = 250           # ← Change initial concentration here
+decay_rate = 0.01  # ← Change decay rate here
 
 results4 = advection_solver(
-    end_time=300, dt=10, length=20, dx=0.2, U=0.1, C0=C0,
+    ...
+    # ← Change the boundary condition function here
     boundary_condition=lambda t: C0 * np.exp(-decay_rate * t)
 )
-
-plot_snapshots(results4, title=f"Test Case 4: Exponential Decay (λ={decay_rate})")
-create_animation(results4, max_conc=C0)
 ```
-
-**How to adapt:**
-
-| Boundary Pattern | Code | Use Case |
-|------------------|------|----------|
-| Constant | `boundary_condition=250` | Continuous source |
-| Exponential decay | `lambda t: C0 * np.exp(-k*t)` | Finite spill depleting |
-| Linear decay | `lambda t: C0 * max(0, 1 - t/T)` | Source draining at constant rate |
-| Step off | `lambda t: C0 if t < T else 0` | Source removed at time T |
-| Sinusoidal | `lambda t: C0 * (1 + A*np.sin(2*np.pi*t/T))` | Tidal or cyclic variation |
 
 ---
 
@@ -276,68 +203,15 @@ create_animation(results4, max_conc=C0)
 
 **Description:** Test to see how a variable stream velocity profile alters your results (for example, add a 10% random perturbation to the constant velocity profile).
 
-**Code:**
+**Where to make changes:**
 ```python
-length, dx = 20, 0.2
-num_points = int(length / dx) + 1
-base_U = 0.1           # Base velocity (m/s)
-perturbation = 0.4     # Perturbation fraction (±40%)
+base_U = 0.1           # ← Change base velocity here
+perturbation = 0.4     # ← Change perturbation fraction here (0.4 = ±40%)
 
-# Generate random velocity profile
-np.random.seed(42)  # For reproducibility
+np.random.seed(42)     # ← Change seed for different random pattern, or remove for new pattern each run
+
+# ← Modify this line to change the velocity profile formula
 variable_U = base_U * (1 + perturbation * (2*np.random.random(num_points) - 1))
-
-# Plot velocity profile
-fig, ax = plt.subplots(figsize=(10, 4))
-ax.plot(np.linspace(0, length, num_points), variable_U, 'b-', linewidth=2)
-ax.axhline(base_U, color='r', linestyle='--', label='Base U')
-ax.set_xlabel("Distance (m)")
-ax.set_ylabel("Velocity (m/s)")
-ax.set_title(f"Variable Velocity Profile (±{perturbation*100:.0f}%)")
-ax.legend()
-ax.grid(True)
-plt.show()
-
-# Run simulation with variable velocity
-results5 = advection_solver(
-    end_time=300, dt=10, length=20, dx=0.2,
-    U=variable_U,
-    C0=250
-)
-
-plot_snapshots(results5, title=f"Test Case 5: Variable Velocity (±{perturbation*100:.0f}%)")
-create_animation(results5, max_conc=250)
-```
-
-**How to adapt:**
-
-| Velocity Pattern | Code | Use Case |
-|------------------|------|----------|
-| Random perturbation | `base * (1 + p*(2*np.random.random(n)-1))` | Turbulent flow |
-| Linear increase | `base * (1 + distance/length)` | Accelerating flow |
-| Step change | `np.where(distance < L/2, U1, U2)` | Channel width change |
-| From measurements | `np.interp(model_dist, meas_dist, meas_velocity)` | Real velocity data |
-
----
-
-## Running Tests
-
-To verify the solver works correctly, run the automated tests:
-
-```python
-# In Colab or terminal
-!pip install pytest
-!pytest tests/ -v
-```
-
-Expected output:
-```
-tests/test_unit.py::TestSpatialGrid::test_grid_size PASSED
-tests/test_unit.py::TestTimeArray::test_time_frames PASSED
-...
-tests/test_integration.py::TestCase1BasicSimulation::test_simulation_runs PASSED
-...
-==================== 14 passed ====================
 ```
 
 ---
